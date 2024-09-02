@@ -1,0 +1,149 @@
+import paho.mqtt.client as mqtt
+import random
+import time
+import json
+import queue
+import logging
+from sklearn.ensemble import IsolationForest
+import joblib
+
+# MQTT Configuration
+BROKER = 'localhost'
+PORT = 1883
+TOPIC = 'iot/surveillance'
+
+# Set up logging
+logging.basicConfig(filename='mqtt_plus_traffic.log', level=logging.INFO,
+                    format='%(asctime)s - %(levelname)s - %(message)s')
+
+# Advanced message queue with priority
+message_queue = queue.PriorityQueue()
+
+# Load or create the machine learning model
+try:
+    model = joblib.load('anomaly_detection_model.pkl')
+except FileNotFoundError:
+    # Create a simple model if it doesn't exist (for demonstration)
+    model = IsolationForest(contamination=0.1)
+    # Normally, you would train this on real data
+    joblib.dump(model, 'anomaly_detection_model.pkl')
+
+def advanced_filtering(message):
+    """
+    Filter messages based on content or priority.
+    Example: Block messages containing anomalies or those of lower priority.
+    """
+    try:
+        payload = json.loads(message.payload.decode())
+        # Filter based on the payload: block if average value is too high
+        if sum(payload["payload"]) / len(payload["payload"]) > 50:
+            logging.warning(f"Blocked message due to anomaly: {payload}")
+            return False
+        return True
+    except Exception as e:
+        logging.error(f"Filtering error: {e}")
+        return False
+
+def priority_queuing(message):
+    """
+    Prioritize messages based on custom logic. Higher priority messages are processed first.
+    """
+    try:
+        payload = json.loads(message.payload.decode())
+        # Example: Prioritize messages with lower sum of payload values
+        priority = -sum(payload["payload"])  # Lower sum gives higher priority
+        message_queue.put((priority, message))
+    except Exception as e:
+        logging.error(f"Queuing error: {e}")
+
+def process_message_with_ml(message):
+    """
+    Apply machine learning to detect anomalies in the message payload.
+    """
+    try:
+        payload = json.loads(message.payload.decode())
+        prediction = model.predict([payload["payload"]])
+        if prediction[0] == -1:
+            logging.warning(f"Anomalous message detected: {payload}")
+            return False  # Block anomalous message
+        return True
+    except Exception as e:
+        logging.error(f"ML processing error: {e}")
+        return False
+
+# MQTT Callback Functions
+def on_connect(client, userdata, flags, rc):
+    if rc == 0:
+        print("Connected successfully to MQTT+ Broker")
+        client.subscribe(TOPIC)
+    else:
+        print(f"Failed to connect, return code {rc}")
+        logging.error(f"Failed to connect, return code {rc}")
+
+def on_message(client, userdata, message):
+    """
+    Handle incoming MQTT messages: filter, queue, and process them.
+    """
+    if advanced_filtering(message):
+        priority_queuing(message)
+
+        # Process messages in the queue
+        while not message_queue.empty():
+            _, queued_message = message_queue.get()
+            if process_message_with_ml(queued_message):
+                logging.info(f"Processed message: {queued_message.payload.decode()}")
+
+# MQTT Client Setup
+client = mqtt.Client()
+
+# Assign callback functions
+client.on_connect = on_connect
+client.on_message = on_message
+
+# Connect to the broker and start the loop
+try:
+    client.connect(BROKER, PORT, 60)
+    client.loop_start()
+
+    # Function to simulate both normal and attack traffic
+    def simulate_traffic(client, duration=60, message_rate=10, attack=False):
+        start_time = time.time()
+        traffic_type = 'Attack' if attack else 'Normal'
+        
+        while time.time() - start_time < duration:
+            for _ in range(message_rate):
+                if not attack:
+                    payload = [random.uniform(0.1, 1.0) for _ in range(10)] + \
+                              [random.uniform(0.01, 0.05) for _ in range(10)]
+                else:
+                    payload = [random.uniform(10, 100) for _ in range(20)]
+
+                message = {
+                    "id": random.randint(1, 1000),
+                    "timestamp": time.time(),
+                    "payload": payload
+                }
+
+                client.publish(TOPIC, json.dumps(message))
+                logging.info(f"{traffic_type} message sent: {message}")
+
+            time.sleep(1)
+        print(f"{traffic_type} traffic simulation complete.")
+        logging.info(f"{traffic_type} traffic simulation complete.")
+
+    # Simulate normal traffic for 30 seconds
+    simulate_traffic(client, duration=30, message_rate=10, attack=False)
+
+    # Simulate attack traffic for 30 seconds
+    simulate_traffic(client, duration=30, message_rate=10, attack=True)
+
+    # Allow some time for message processing
+    time.sleep(10)
+
+except Exception as e:
+    logging.error(f"Connection failed: {e}")
+
+finally:
+    client.loop_stop()
+    client.disconnect()
+    print("MQTT+ network setup complete.")
