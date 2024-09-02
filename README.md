@@ -1,10 +1,6 @@
-#CPS-IoT Surveillance Platform (IoT Group Project)
+# CPS--IoT-surveillance-platform.
 
-
-The overarching objective of this project is to develop a machine learning-driven IoT
-surveillance system capable of accurately identifying security breaches amidst the vast sea of
-network traffic. This system will be implemented as a CPS-IoT surveillance platform,
-encompassing two distinct setups to assess performance under normal and attack scenarios:
+The overarching objective of this project is to develop a machine learning-driven IoT surveillance system capable of accurately identifying security breaches amidst the vast sea of network traffic.This system will be implemented as a CPS-IoT surveillance platform,encompassing two distinct setups to assess performance under normal and attack scenarios:
 
 1. MQTT Network Setup: Operating with normal and attacked traffic to generate datasets
 from network logs.
