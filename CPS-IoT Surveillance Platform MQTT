@@ -1,0 +1,101 @@
+import paho.mqtt.client as mqtt
+import random
+import time
+import json
+import logging
+
+# MQTT Configuration
+BROKER = 'localhost'  # Local broker
+PORT = 1883
+TOPIC = 'iot/surveillance'
+
+# Set up logging
+logging.basicConfig(filename='mqtt_traffic.log', level=logging.INFO,
+                    format='%(asctime)s - %(levelname)s - %(message)s')
+
+# Simulate Traffic Function
+def simulate_traffic(client, duration=60, message_rate=10, attack=False):
+    """
+    Simulate normal or attack traffic by sending a high volume of messages.
+    :param client: The MQTT client instance.
+    :param duration: Time to run the simulation in seconds.
+    :param message_rate: Number of messages to send per second.
+    :param attack: If True, simulate attack traffic; otherwise, simulate normal traffic.
+    """
+    start_time = time.time()
+    traffic_type = 'Attack' if attack else 'Normal'
+    
+    while time.time() - start_time < duration:
+        for _ in range(message_rate):
+            # Generate payload with a pattern for normal traffic
+            if not attack:
+                payload = [random.uniform(0.1, 1.0) for _ in range(10)] + \
+                          [random.uniform(0.01, 0.05) for _ in range(10)]
+            else:
+                # Introduce anomalies in the data to simulate attack traffic
+                payload = [random.uniform(10, 100) for _ in range(20)]
+
+            message = {
+                "id": random.randint(1, 1000),
+                "timestamp": time.time(),
+                "payload": payload
+            }
+
+            client.publish(TOPIC, json.dumps(message))
+            logging.info(f"{traffic_type} message sent: {message}")
+
+        time.sleep(1)
+
+    print(f"{traffic_type} traffic simulation complete.")
+    logging.info(f"{traffic_type} traffic simulation complete.")
+
+# MQTT Callback Functions
+def on_connect(client, userdata, flags, rc):
+    if rc == 0:
+        print("Connected successfully")
+        client.subscribe(TOPIC)
+    else:
+        print(f"Failed to connect, return code {rc}")
+        logging.error(f"Failed to connect, return code {rc}")
+
+def on_message(client, userdata, message):
+    # Decode and log the message
+    try:
+        payload = json.loads(message.payload.decode())
+        if isinstance(payload.get("payload"), list) and len(payload["payload"]) == 20:
+            logging.info(f"Message received: Topic: {message.topic}, Payload ID: {payload['id']}, Timestamp: {payload['timestamp']}, Payload: {payload['payload']}")
+        else:
+            logging.warning(f"Incorrect message format: {message.payload.decode()}")
+    except Exception as e:
+        logging.error(f"Error processing message: {e}")
+
+# MQTT Client Setup
+client = mqtt.Client()
+
+# Assign callback functions
+client.on_connect = on_connect
+client.on_message = on_message
+
+# Connect to the broker and start the loop
+try:
+    client.connect(BROKER, PORT, 60)
+    client.loop_start()
+
+    # Simulate normal traffic for 30 seconds
+    simulate_traffic(client, duration=30, message_rate=10, attack=False)
+
+    # Simulate attack traffic for 30 seconds
+    simulate_traffic(client, duration=30, message_rate=10, attack=True)
+
+    # Allow some time for message processing
+    time.sleep(10)
+
+except Exception as e:
+    logging.error(f"Connection failed: {e}")
+
+finally:
+    # Stop the client loop and disconnect
+    client.loop_stop()
+    client.disconnect()
+
+    print("MQTT network setup complete.")
