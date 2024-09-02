@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from imblearn.over_sampling import SMOTE
 
-# Load datasets (upload your CSV files to Colab first)
+# Load datasets 
 mqtt_df = pd.read_csv('mqtt_simulation.csv')
 mqtt_plus_df = pd.read_csv('mqtt_plus.csv')
 
