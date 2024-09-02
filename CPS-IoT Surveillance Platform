@@ -125,9 +125,9 @@ plt.title('Learning Curve')
 plt.legend()
 plt.show()
 
-# Feature Correlation Heatmap
-corr = combined_df.drop(['Time', 'Info', 'Label'], axis=1).corr()
-plt.figure(figsize=(12, 10))
+#Feature Correlation Heatmap
+corr =combined_df.drop(['Time','Info','Label'],axis=1).corr()
+plt.figure(figsize=(12,10))
 sns.heatmap(corr, annot=True, cmap='coolwarm', fmt='.2f')
 plt.title('Feature Correlation Heatmap')
 plt.show()
