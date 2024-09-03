@@ -1,0 +1,107 @@
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split, StratifiedKFold
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import classification_report, accuracy_score, roc_curve, auc, confusion_matrix, ConfusionMatrixDisplay
+from sklearn.impute import SimpleImputer
+from sklearn.utils.class_weight import compute_class_weight
+from imblearn.under_sampling import RandomUnderSampler
+
+# Load the datasets
+mqtt_df = pd.read_csv('/content/mqtt.csv')
+mqtt_plus_df = pd.read_csv('/content/mqtt_plus.csv')
+
+# Define the threshold for classification
+length_threshold = 100
+
+# Label traffic types based on Length
+def label_traffic(df, threshold):
+    df['Traffic_Type'] = np.where(df['Length'] > threshold, 'Attack', 'Normal')
+    return df
+
+mqtt_df = label_traffic(mqtt_df, length_threshold)
+mqtt_plus_df = label_traffic(mqtt_plus_df, length_threshold)
+
+# Preprocess data
+def preprocess_data(df):
+    imputer = SimpleImputer(strategy='mean')
+    df_imputed = df.copy()
+
+    df_imputed[['Time', 'Length']] = imputer.fit_transform(df[['Time', 'Length']])
+
+    df_encoded = pd.get_dummies(df_imputed[['Source', 'Destination', 'Protocol', 'Info']])
+    df_encoded = pd.concat([df_imputed[['Time', 'Length']], df_encoded], axis=1)
+
+    return df_encoded
+
+mqtt_df_encoded = preprocess_data(mqtt_df)
+mqtt_plus_df_encoded = preprocess_data(mqtt_plus_df)
+
+# Define feature columns and target variable
+def get_features_and_target(df_encoded, original_df):
+    features = [col for col in df_encoded.columns if col != 'Traffic_Type']
+    X = df_encoded[features]
+    y = original_df['Traffic_Type']
+    return X, y
+
+X_mqtt, y_mqtt = get_features_and_target(mqtt_df_encoded, mqtt_df)
+X_mqtt_plus, y_mqtt_plus = get_features_and_target(mqtt_plus_df_encoded, mqtt_plus_df)
+
+# Resample to handle class imbalance
+def balance_dataset(X, y):
+    undersampler = RandomUnderSampler(sampling_strategy='auto', random_state=42)
+    X_resampled, y_resampled = undersampler.fit_resample(X, y)
+    return X_resampled, y_resampled
+
+X_mqtt_balanced, y_mqtt_balanced = balance_dataset(X_mqtt, y_mqtt)
+X_mqtt_plus_balanced, y_mqtt_plus_balanced = balance_dataset(X_mqtt_plus, y_mqtt_plus)
+
+# Stratified train-test split
+X_train, X_test, y_train, y_test = train_test_split(X_mqtt_balanced, y_mqtt_balanced, test_size=0.3, random_state=42, stratify=y_mqtt_balanced)
+X_plus_train, X_plus_test, y_plus_train, y_plus_test = train_test_split(X_mqtt_plus_balanced, y_mqtt_plus_balanced, test_size=0.3, random_state=42, stratify=y_mqtt_plus_balanced)
+
+# Train and evaluate RandomForestClassifier
+def train_and_evaluate(X_train, y_train, X_test, y_test, class_weights=None):
+    model = RandomForestClassifier(n_estimators=100, class_weight=class_weights, random_state=42)
+    model.fit(X_train, y_train)
+    y_pred = model.predict(X_test)
+
+    print(classification_report(y_test, y_pred))
+    print("Accuracy:", accuracy_score(y_test, y_pred))
+
+    # Adjust number of splits
+    skf = StratifiedKFold(n_splits=2)  # Reduced number of splits
+    cross_val_scores = cross_val_score(model, X_train, y_train, cv=skf)
+    print("Stratified K-Fold Cross-Validation Scores:", cross_val_scores)
+    print("Average Cross-Validation Score:", np.mean(cross_val_scores))
+
+    # ROC Curve and AUC
+    y_prob = model.predict_proba(X_test)[:, 1]
+    fpr, tpr, thresholds = roc_curve(y_test.map({'Normal': 0, 'Attack': 1}), y_prob)
+    roc_auc = auc(fpr, tpr)
+    print("AUC Score:", roc_auc)
+
+    plt.figure()
+    plt.plot(fpr, tpr, color='darkorange', lw=2, label=f'ROC curve (area = {roc_auc:.2f})')
+    plt.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--')
+    plt.xlim([0.0, 1.0])
+    plt.ylim([0.0, 1.05])
+    plt.xlabel('False Positive Rate')
+    plt.ylabel('True Positive Rate')
+    plt.title('Receiver Operating Characteristic')
+    plt.legend(loc="lower right")
+    plt.show()
+
+    # Confusion Matrix
+    cm = confusion_matrix(y_test, y_pred)
+    disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=model.classes_)
+    disp.plot(cmap=plt.cm.Blues)
+    plt.title('Confusion Matrix')
+    plt.show()
+
+print("MQTT Dataset Performance:")
+train_and_evaluate(X_train, y_train, X_test, y_test, class_weights='balanced')
+
+print("\nMQTT+ Dataset Performance:")
+train_and_evaluate(X_plus_train, y_plus_train, X_plus_test, y_plus_test, class_weights='balanced')
