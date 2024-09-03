@@ -58,7 +58,7 @@ def priority_queuing(message):
 
 def process_message_with_ml(message):
     """
-    Apply machine learning to detect anomalies in the message payload.
+    Machine learning to detect anomalies in the message payload.
     """
     try:
         payload = json.loads(message.payload.decode())
@@ -82,7 +82,7 @@ def on_connect(client, userdata, flags, rc):
 
 def on_message(client, userdata, message):
     """
-    Handle incoming MQTT messages: filter, queue, and process them.
+    Handling incoming MQTT messages: filter, queue, and process them.
     """
     if advanced_filtering(message):
         priority_queuing(message)
@@ -137,7 +137,7 @@ try:
     # Simulate attack traffic for 30 seconds
     simulate_traffic(client, duration=30, message_rate=10, attack=True)
 
-    # Allow some time for message processing
+    #  time for message processing
     time.sleep(10)
 
 except Exception as e:
