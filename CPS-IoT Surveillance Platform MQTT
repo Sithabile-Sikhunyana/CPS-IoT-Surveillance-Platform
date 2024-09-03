@@ -13,7 +13,7 @@ TOPIC = 'iot/surveillance'
 logging.basicConfig(filename='mqtt_traffic.log', level=logging.INFO,
                     format='%(asctime)s - %(levelname)s - %(message)s')
 
-# Simulating Traffic Function
+# Traffic Function simulation
 def simulate_traffic(client, duration=60, message_rate=10, attack=False):
     """
     Simulate normal or attack traffic by sending a high volume of messages.
@@ -72,7 +72,7 @@ def on_message(client, userdata, message):
 # MQTT Client Setup
 client = mqtt.Client()
 
-# Assign callback functions
+# callback functions
 client.on_connect = on_connect
 client.on_message = on_message
 
