@@ -9,11 +9,11 @@ BROKER = 'localhost'  # Local broker
 PORT = 1883
 TOPIC = 'iot/surveillance'
 
-# Set up logging
+# Setting up logging
 logging.basicConfig(filename='mqtt_traffic.log', level=logging.INFO,
                     format='%(asctime)s - %(levelname)s - %(message)s')
 
-# Simulate Traffic Function
+# Simulating Traffic Function
 def simulate_traffic(client, duration=60, message_rate=10, attack=False):
     """
     Simulate normal or attack traffic by sending a high volume of messages.
